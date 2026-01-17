@@ -1,28 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useAccount,
   useConnect,
   useDisconnect,
-  useReadContract,
   useWriteContract,
   useChainId,
 } from 'wagmi';
-
 import { injected } from 'wagmi/connectors';
+
 import {
   CONTRACT_ADDRESS,
-  SIMPLE_STORAGE_ABI
-} from '@/src/lib/contract'
-
+  SIMPLE_STORAGE_ABI,
+} from '@/src/lib/contract';
 import { FUJI_CHAIN_ID, FUJI_CHAIN_NAME } from '@/src/lib/constants';
 
+import {
+  getBlockchainValue,
+  getBlockchainEvents,
+} from '../services/blockchain.service';
 
+type BlockchainEvent = {
+  blockNumber: number;
+  value: number;
+  txHash: string;
+};
 
 export default function Page() {
   // ==============================
-  //  WALLET
+  // WALLET
   // ==============================
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -30,26 +37,41 @@ export default function Page() {
   const { disconnect } = useDisconnect();
 
   // ==============================
-  //  LOCAL STATE
+  // LOCAL STATE
   // ==============================
+  const [value, setValue] = useState<number | null>(null);
+  const [events, setEvents] = useState<BlockchainEvent[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [txStatus, setTxStatus] = useState<string | null>(null);
+  const [isReading, setIsReading] = useState(false);
+
+  const wrongNetwork = isConnected && chainId !== FUJI_CHAIN_ID;
 
   // ==============================
-  //  READ CONTRACT
+  // READ VIA BACKEND
   // ==============================
-  const {
-    data: value,
-    isLoading: isReading,
-    refetch,
-  } = useReadContract({
-    address: CONTRACT_ADDRESS,
-    abi: SIMPLE_STORAGE_ABI,
-    functionName: 'getValue',
-  });
+  const fetchBlockchainData = async () => {
+    try {
+      setIsReading(true);
+
+      const valueRes = await getBlockchainValue();
+      const eventsRes = await getBlockchainEvents();
+
+      setValue(valueRes.value);
+      setEvents(eventsRes);
+    } catch (err) {
+      console.error('Failed to fetch blockchain data', err);
+    } finally {
+      setIsReading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBlockchainData();
+  }, []);
 
   // ==============================
-  //  WRITE CONTRACT
+  // WRITE VIA WALLET
   // ==============================
   const {
     writeContract,
@@ -59,7 +81,7 @@ export default function Page() {
   } = useWriteContract();
 
   const handleSetValue = () => {
-    if (!inputValue) return;
+    if (!inputValue || wrongNetwork) return;
 
     setTxStatus('Transaction pending...');
 
@@ -72,31 +94,31 @@ export default function Page() {
   };
 
   // ==============================
-  //  TX STATUS EFFECT
+  // TX STATUS EFFECT
   // ==============================
   useEffect(() => {
     if (isSuccess) {
       setTxStatus('Transaction success ✅');
       setInputValue('');
-      refetch();
+
+      // 🔥 Re-fetch via backend after tx confirmed
+      fetchBlockchainData();
     }
 
     if (isError) {
       setTxStatus('Transaction failed ❌');
     }
-  }, [isSuccess, isError, refetch]);
-
-  const wrongNetwork = isConnected && chainId !== FUJI_CHAIN_ID;
+  }, [isSuccess, isError]);
 
   // ==============================
-  //  UI
+  // UI
   // ==============================
   return (
     <main className="min-h-screen flex items-center justify-center bg-black text-white">
       <div className="w-full max-w-md border border-gray-700 rounded-lg p-6 space-y-6">
 
         <h1 className="text-xl font-bold">
-          Day 3 – Frontend dApp with Next JS
+          Day 5 – Full Stack dApp (End-to-End)
         </h1>
 
         {/* ==========================
@@ -136,22 +158,22 @@ export default function Page() {
         )}
 
         {/* ==========================
-            READ CONTRACT
+            READ FROM BACKEND
         ========================== */}
         <div className="border-t border-gray-700 pt-4 space-y-2">
-          <p className="text-sm text-gray-400">Contract Value</p>
+          <p className="text-sm text-gray-400">Latest Value (via Backend)</p>
 
           {isReading ? (
             <p>Loading...</p>
           ) : (
-            <p className="text-2xl font-bold">{value?.toString()}</p>
+            <p className="text-2xl font-bold">{value}</p>
           )}
 
           <button
-            onClick={() => refetch()}
+            onClick={fetchBlockchainData}
             className="text-sm underline text-gray-300"
           >
-            Refresh value
+            Refresh
           </button>
         </div>
 
@@ -159,7 +181,7 @@ export default function Page() {
             WRITE CONTRACT
         ========================== */}
         <div className="border-t border-gray-700 pt-4 space-y-3">
-          <p className="text-sm text-gray-400">Update Value</p>
+          <p className="text-sm text-gray-400">Update Value (Wallet)</p>
 
           <input
             type="number"
@@ -183,8 +205,27 @@ export default function Page() {
           )}
         </div>
 
+        {/* ==========================
+            EVENTS
+        ========================== */}
+        <div className="border-t border-gray-700 pt-4 space-y-2">
+          <p className="text-sm text-gray-400">Events (via Backend)</p>
+
+          {events.length === 0 ? (
+            <p className="text-xs text-gray-500">No events</p>
+          ) : (
+            <ul className="text-xs space-y-1">
+              {events.slice(0, 5).map((event, idx) => (
+                <li key={idx} className="border-b border-gray-700 pb-1">
+                  Block #{event.blockNumber} → value: {event.value}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <p className="text-xs text-gray-500 pt-2">
-          Smart contract is the source of truth
+          Read via Backend API · Write via Wallet · Fuji Testnet
         </p>
 
       </div>

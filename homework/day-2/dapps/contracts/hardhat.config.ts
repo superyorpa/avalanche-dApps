@@ -14,16 +14,33 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    avalancheFuji: {
-      url: "https://api.avax-test.network/ext/bc/C/rpc",
-      chainId: 43113,
-      accounts: [process.env.PRIVATE_KEY!],
-    },
+    // avalancheFuji: {
+    //   url: "https://api.avax-test.network/ext/bc/C/rpc",
+    //   chainId: 43113,
+    //   accounts: [process.env.PRIVATE_KEY!],
+    // },
+    snowtrace: {
+    url: "https://api.avax-test.network/ext/bc/C/rpc",
+    accounts: [process.env.PRIVATE_KEY!],
+  },
   },
   etherscan: {
+    // apiKey: {
+    //   avalancheFujiTestnet: process.env.SNOWTRACE_API_KEY || "",
+    // },
     apiKey: {
-      avalancheFujiTestnet: process.env.SNOWTRACE_API_KEY || "",
+    snowtrace: "snowtrace", // placeholder
+  },
+  customChains: [
+    {
+      network: "snowtrace",
+      chainId: 43113,
+      urls: {
+        apiURL: "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan",
+        browserURL: "https://testnet.snowtrace.io",
+      },
     },
+  ],
   },
 };
 
